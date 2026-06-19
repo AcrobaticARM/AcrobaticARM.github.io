@@ -187,7 +187,7 @@
             <button class="btn btn-add" id="openAddModalBtn">+ Ավելացնել Երեխա</button>
         </div>
         <div id="childrenList">
-            </div>
+        </div>
     </div>
 </div>
 
@@ -332,7 +332,10 @@
                     <button class="btn btn-info" id="info-${student.id}">Տվյալներ</button>
                     <button class="btn" style="background: #6c757d; color: white;" id="hist-${student.id}">Պատմություն</button>
                     
-                 
+                    <div class="history-text">
+                        Վճարներ: ${paymentHistory.join(', ') || 'Չկա'}<br>
+                        Օրեր: ${attendanceHistory.join(', ') || 'Չկա'}
+                    </div>
 
                     <button class="btn btn-save" id="save-${student.id}">Պահպանել</button>
                     <button class="btn btn-delete" id="del-${student.id}">X</button>
@@ -383,8 +386,13 @@
                 hModal.classList.remove('hidden');
             });
 
-            // Պահպանել տվյալ երեխայի կարգավիճակը
-            document.getElementById(`save-${student.id}`).addEventListener('click', async () => {
+            // Պահպանել տվյալ երեխայի կարգավիճակը (ՕՊՏԻՄԻԶԱՑՎԱԾ ՏԱՐԲԵՐԱԿ)
+            document.getElementById(`save-${student.id}`).addEventListener('click', async (e) => {
+                const btnSave = e.target;
+                btnSave.disabled = true;
+                const oldText = btnSave.textContent;
+                btnSave.textContent = "...";
+
                 const payStatus = document.getElementById(`pay-${student.id}`).value === "true";
                 const attStatus = document.getElementById(`att-${student.id}`).value;
                 const today = new Date().toLocaleDateString('hy-AM');
@@ -399,14 +407,40 @@
                     updatedPayments.push(today);
                 }
 
-                const docRef = doc(db, "registrations", student.id);
-                await updateDoc(docRef, {
-                    isPaid: payStatus,
-                    attendance: updatedAttendance,
-                    payments: updatedPayments
-                });
-                alert("Պահպանվեց:");
-                loadData();
+                try {
+                    const docRef = doc(db, "registrations", student.id);
+                    await updateDoc(docRef, {
+                        isPaid: payStatus,
+                        attendance: updatedAttendance,
+                        payments: updatedPayments
+                    });
+
+                    // ԼՈԿԱԼ ԹԱՐՄԱՑՈՒՄ՝ արժեքները թարմացնում ենք հիշողության մեջ, որպեսզի հաջորդ սեղմելուն էլ ճիշտ աշխատի
+                    student.isPaid = payStatus;
+                    student.attendance = updatedAttendance;
+                    student.payments = updatedPayments;
+
+                    // Թարմացնում ենք .history-text դիվի պարունակությունը հենց այս տողի վրա
+                    const row = btnSave.closest('.child-row');
+                    if (row) {
+                        const historyDiv = row.querySelector('.history-text');
+                        if (historyDiv) {
+                            historyDiv.innerHTML = `
+                                Վճարներ: ${updatedPayments.join(', ') || 'Չկա'}<br>
+                                Օրեր: ${updatedAttendance.join(', ') || 'Չկա'}
+                            `;
+                        }
+                    }
+
+                    // Մաքրում ենք հաճախման select-ը
+                    document.getElementById(`att-${student.id}`).value = "";
+                    alert("Պահպանվեց:");
+                } catch (err) {
+                    alert("Սխալ պահպանելիս: " + err.message);
+                } finally {
+                    btnSave.disabled = false;
+                    btnSave.textContent = oldText;
+                }
             });
 
             // Ջնջել Բազայից
